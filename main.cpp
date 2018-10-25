@@ -5,6 +5,7 @@
 #include <string>
 #include <time.h>
 #include <math.h> 
+#include <thread>
 using namespace std;
 
 #define OVERLAP_THRESHOLD 3 // Threshold for what counts as "Binding"
@@ -51,7 +52,7 @@ void printStrand(unsigned int strand, int length, bool printBin=false, int offse
 }
 
 /*
-bindBase takes two 4-byte numbers and returns their binding "score" 
+bind takes two 4-byte numbers and returns their binding "score" 
 
     This function takes a very conservative and naieve approach to binding, 
     and does not take order of the DNA strand into effect.
@@ -70,28 +71,51 @@ bindBase takes two 4-byte numbers and returns their binding "score"
     1000 - U match
 */
 
-float results[9] = {-1,1,1,1,-2,1,-1,1,0};
-int bindBase(unsigned int b1, unsigned int b2){
-    if(!((b1|b2)&1==0)) return results[b1^b2];
-    if(b1==U||b2==U) return results[8];
-    if(b1==X||b2==X) return results[1];
-    cout << "Error -1" << endl;
-    throw -1;
+#define MATCH 1
+#define NMATCH -1
+#define BMATCH -2
+#define UMATCH 0
+
+
+float results[9] = {NMATCH,MATCH,MATCH,MATCH,BMATCH,MATCH,NMATCH,MATCH,UMATCH};
+float bindBaseSlow(const unsigned int b1, const unsigned int b2){
+    if((b1&b2)&1) return results[b1^b2];
+    if(b2==U||b1==U) return UMATCH;
+    if(b2==X||b1==X) return MATCH;
+    return -1;
 }
 
-int bind(const unsigned int &s1, const unsigned int &s2, const unsigned int &numBases, const unsigned int offset=0){
+float baseArray[8][8];
+float twoBaseArray[0b111111][0b111111];
+
+void generateTwoBaseArray(){
+    for(unsigned int i=0;i<0b1000000;i++){
+        for(unsigned int j=0;i<0b1000000;i++){
+	    twoBaseArray[i][j] = bindBaseSlow(i,j);
+        }
+    }
+
+}
+void generateBaseArray(){
+    for(unsigned int i=0;i<0b1000;i++){
+        for(unsigned int j=0;i<0b1000;i++){
+	    baseArray[i][j] = bindBaseSlow(i,j);
+        }
+    }
+    generateTwoBaseArray();
+
+}
+
+inline int bind(const unsigned int s1, const unsigned int s2, const unsigned int numBases, const unsigned int offset=0){
     int result = 0;
     unsigned int mask = 7;
-    for(int i=offset;i<numBases;i+=1){
-        unsigned int s1m = s1 & mask;
-        unsigned int s2m = s2 & mask;
-        int comp = bindBase(s1m>>i*3, s2m>>i*3);
-            result += comp;
-            mask = mask << 3;
+    for(int i=offset;i<numBases;i++){
+        result += baseArray[(s1&mask)>>i*3][(s2&mask)>>i*3];
+        mask = mask << 3;
     }
     return result;
 }
-bool bindStrand(unsigned int s1, unsigned int s2, unsigned int length){
+inline bool bindStrand(const unsigned int s1, const unsigned int s2, const unsigned int length){
     int counter = 0;
     // binding is compared in three seperate sections to lessen the variable size needed for s1, s2 (data lost by bit shifts isn't a problem this way)
 
@@ -218,16 +242,16 @@ void testSpeed(const unsigned int genLen, const unsigned int numRun){
   clock_t start, end;
   long double timeUsed;
   for(int q=0;q<numRun;q++){
-  start = clock();
-  for(const unsigned int &strand1 : strands){
-      for(const unsigned int &strand2 : strands){
-        bindStrand(strand1, strand2, genLen);
-    }    
-  }
-  end = clock();
-  timeUsed = ((long double) (end - start)) / CLOCKS_PER_SEC;
-  totalTimeUsed += timeUsed;
-  cout << genLen << "bp Test CPU Time Used Run "<< q <<": " << timeUsed << endl;
+      start = clock();
+      for(const unsigned int &strand1 : strands){
+        for(const unsigned int &strand2 : strands){
+          bindStrand(strand1, strand2, genLen);
+        }    
+      }
+      end = clock();
+      timeUsed = ((long double) (end - start)) / CLOCKS_PER_SEC;
+      totalTimeUsed += timeUsed;
+      cout << genLen << "bp Test CPU Time Used Run "<< q <<": " << timeUsed << endl;
   }
   cout << genLen << "bp Average CPU Time Used: " << totalTimeUsed/numRun << endl;
 }
@@ -235,7 +259,7 @@ void testSpeed(const unsigned int genLen, const unsigned int numRun){
 int main()
 {
   int length = 6;
-
+  generateBaseArray();
   //for human testing, we can create strand vars like this:
   int strandy1[length] = {A,G,C,T,T,C};
   int strandy2[length] = {T,C,G,T,A,G};
@@ -243,5 +267,6 @@ int main()
   unsigned int strand2 = getStrand(strandy2, length); // strand2 5'->3'
   bindStrand(strand1, strand2, length); // to test binding
 
-  testSpeed(4, 10);
+  testSpeed(4, 100);
 }
+
