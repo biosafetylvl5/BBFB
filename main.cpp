@@ -85,36 +85,41 @@ float bindBaseSlow(const unsigned int b1, const unsigned int b2){
     return -1;
 }
 
-float baseArray[8][8];
-float twoBaseArray[0b111111][0b111111];
+float*** basesArray;
 
-void generateTwoBaseArray(){
-    for(unsigned int i=0;i<0b1000000;i++){
-        for(unsigned int j=0;i<0b1000000;i++){
-	    twoBaseArray[i][j] = bindBaseSlow(i,j);
+void generateNBaseArray(int numBases){
+    basesArray = new float**[numBases];
+    for(int basesLength=1;basesLength<numBases;basesLength++){
+        int numComb = 1<<3*basesLength;
+	basesArray[basesLength-1] = new float*[numComb];
+        for(unsigned int i=0;i<numComb;i++){
+            basesArray[basesLength-1][i] = new float[numComb];
+            for(unsigned int j=0;j<numComb;j++){
+                basesArray[basesLength-1][i][j] = bindBaseSlow(i,j);
+            }
         }
     }
-
 }
-void generateBaseArray(){
-    for(unsigned int i=0;i<0b1000;i++){
-        for(unsigned int j=0;i<0b1000;i++){
-	    baseArray[i][j] = bindBaseSlow(i,j);
-        }
-    }
-    generateTwoBaseArray();
-
+void generateBaseArray(int length=3){
+    cout << "Starting to make base array..." << endl;
+    generateNBaseArray(length);
+    cout << "Finished makeing base array." << endl;
 }
 
-inline int bind(const unsigned int s1, const unsigned int s2, const unsigned int numBases, const unsigned int offset=0){
+inline int bind(const unsigned int s1, const unsigned int s2, const unsigned int numBases, unsigned int offset=0){
+    //cout << "binding" << endl;
     int result = 0;
     unsigned int mask = 0b111111;
-    if(numBases%2==0) {
-        result += baseArray[(s1&7)>>3][(s2&7)>>3];
+    if(numBases%2==1) {
+        //cout<<"!"<<endl;
+        result += basesArray[0][(s1&7)>>3][(s2&7)>>3];
         mask = mask << 3;
+	offset++;
     }
     for(int i=offset;i<numBases;i+=2){
-        result += baseArray[(s1&mask)>>i*6][(s2&mask)>>i*6];
+        //cout<<"?"<<endl;
+	//cout << "Looking for basesArray["<<1<<"]["<<((s1&mask)>>i*6)<<"]["<<((s2&mask)>>i*6)<<"]"<<endl;
+        result += basesArray[1][(s1&mask)>>i*6][(s2&mask)>>i*6];
         mask = mask << 6;
     }
     return result;
@@ -264,7 +269,7 @@ void testSpeed(const unsigned int genLen, const unsigned int numRun){
 int main()
 {
   int length = 6;
-  generateBaseArray();
+  generateBaseArray(4); // why does this seg fault when it's executed later?
   //for human testing, we can create strand vars like this:
   int strandy1[length] = {A,G,C,T,T,C};
   int strandy2[length] = {T,C,G,T,A,G};
@@ -272,6 +277,7 @@ int main()
   unsigned int strand2 = getStrand(strandy2, length); // strand2 5'->3'
   bindStrand(strand1, strand2, length); // to test binding
 
-  testSpeed(6, 2);
+  testSpeed(7, 1);
+  
 }
 
