@@ -108,13 +108,18 @@ void generateBaseArray(){
 
 inline int bind(const unsigned int s1, const unsigned int s2, const unsigned int numBases, const unsigned int offset=0){
     int result = 0;
-    unsigned int mask = 7;
-    for(int i=offset;i<numBases;i++){
-        result += baseArray[(s1&mask)>>i*3][(s2&mask)>>i*3];
+    unsigned int mask = 0b111111;
+    if(numBases%2==0) {
+        result += baseArray[(s1&7)>>3][(s2&7)>>3];
         mask = mask << 3;
+    }
+    for(int i=offset;i<numBases;i+=2){
+        result += baseArray[(s1&mask)>>i*6][(s2&mask)>>i*6];
+        mask = mask << 6;
     }
     return result;
 }
+
 inline bool bindStrand(const unsigned int s1, const unsigned int s2, const unsigned int length){
     int counter = 0;
     // binding is compared in three seperate sections to lessen the variable size needed for s1, s2 (data lost by bit shifts isn't a problem this way)
@@ -267,6 +272,6 @@ int main()
   unsigned int strand2 = getStrand(strandy2, length); // strand2 5'->3'
   bindStrand(strand1, strand2, length); // to test binding
 
-  testSpeed(4, 100);
+  testSpeed(6, 2);
 }
 
